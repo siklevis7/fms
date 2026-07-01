@@ -78,3 +78,35 @@ def cancel_flight(
     if not flight:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flight not found")
     return flight
+
+from app.schemas.flight import FlightComplete
+from app.models.employee import EmployeeRole
+
+@router.post("/{flight_id}/complete", response_model=FlightResponse, summary="Complete a flight (Admin or Assigned Crew)")
+def complete_flight(
+    flight_id: int, 
+    completion: FlightComplete, 
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee)
+):
+    flight = crud.get_flight(db, flight_id)
+    if not flight:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flight not found")
+        
+    # Permission check: Admin or assigned to this flight
+    if current_employee.role != EmployeeRole.ADMIN:
+        from app.crud.assignments import get_assignments_for_employee
+        assignments = get_assignments_for_employee(db, current_employee.id)
+        if not any(a.flight_id == flight_id for a in assignments):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to complete this flight")
+
+    update_data = FlightUpdate(
+        status=FlightStatus.FINISHED,
+        actual_departure=completion.actual_departure,
+        actual_arrival=completion.actual_arrival,
+        remaining_fuel=completion.remaining_fuel
+    )
+    
+    updated_flight = crud.update_flight(db, flight_id, update_data)
+    return updated_flight
+

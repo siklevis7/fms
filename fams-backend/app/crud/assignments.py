@@ -36,6 +36,18 @@ def update_assignment(db: Session, assignment_id: int, update: AssignmentUpdate)
     return db_assignment
 
 
+def replace_assignment(db: Session, assignment_id: int, new_employee_id: int) -> CrewAssignment | None:
+    db_assignment = get_assignment(db, assignment_id)
+    if not db_assignment:
+        return None
+    from app.models.crew_assignment import AssignmentStatus
+    db_assignment.employee_id = new_employee_id
+    db_assignment.status = AssignmentStatus.ASSIGNED
+    db.commit()
+    db.refresh(db_assignment)
+    return db_assignment
+
+
 def delete_assignment(db: Session, assignment_id: int) -> bool:
     db_assignment = get_assignment(db, assignment_id)
     if not db_assignment:

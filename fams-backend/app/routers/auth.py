@@ -16,6 +16,8 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/login", summary="Login to get JWT token")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     employee = crud.get_employee_by_email(db, form_data.username)
+    if not employee:
+        employee = crud.get_employee_by_number(db, form_data.username)
     if not employee or not verify_password(form_data.password, employee.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

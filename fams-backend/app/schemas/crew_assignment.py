@@ -16,6 +16,9 @@ class AssignmentUpdate(BaseModel):
     status: AssignmentStatus | None = None
     notes: str | None = None
 
+class AssignmentReplace(BaseModel):
+    new_employee_id: int = Field(..., gt=0)
+
 
 class AssignmentResponse(BaseModel):
     id: int

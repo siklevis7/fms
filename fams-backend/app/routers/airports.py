@@ -19,13 +19,13 @@ def list_airports(
     return crud.get_airports(db, skip=skip, limit=limit)
 
 
-@router.get("/{iata_code}", response_model=AirportResponse, summary="Get airport by IATA")
+@router.get("/{icao_code}", response_model=AirportResponse, summary="Get airport by ICAO")
 def get_airport(
-    iata_code: str, 
+    icao_code: str, 
     db: Session = Depends(get_db),
     _=Depends(get_current_employee)
 ):
-    airport = crud.get_airport(db, iata_code)
+    airport = crud.get_airport(db, icao_code)
     if not airport:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Airport not found")
     return airport
@@ -37,29 +37,29 @@ def create_airport(
     db: Session = Depends(get_db),
     _=Depends(require_admin)
 ):
-    if crud.get_airport(db, airport.iata_code):
+    if crud.get_airport(db, airport.icao_code):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Airport already exists")
     return crud.create_airport(db, airport)
 
 
-@router.patch("/{iata_code}", response_model=AirportResponse, summary="Update airport (Admin only)")
+@router.patch("/{icao_code}", response_model=AirportResponse, summary="Update airport (Admin only)")
 def update_airport(
-    iata_code: str, 
+    icao_code: str, 
     update: AirportUpdate, 
     db: Session = Depends(get_db),
     _=Depends(require_admin)
 ):
-    airport = crud.update_airport(db, iata_code, update)
+    airport = crud.update_airport(db, icao_code, update)
     if not airport:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Airport not found")
     return airport
 
 
-@router.delete("/{iata_code}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete airport (Admin only)")
+@router.delete("/{icao_code}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete airport (Admin only)")
 def delete_airport(
-    iata_code: str, 
+    icao_code: str, 
     db: Session = Depends(get_db),
     _=Depends(require_admin)
 ):
-    if not crud.delete_airport(db, iata_code):
+    if not crud.delete_airport(db, icao_code):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Airport not found")

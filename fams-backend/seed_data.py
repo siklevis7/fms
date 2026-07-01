@@ -12,7 +12,6 @@ from app.auth import hash_password
 from app.models.employee import Employee, EmployeeRole
 from app.models.aircraft import Aircraft, AircraftStatus
 from app.models.airport import Airport
-from app.models.route import Route
 from app.models.flight import Flight, FlightStatus
 from app.models.crew_assignment import CrewAssignment, DutyRole, AssignmentStatus
 from app.models.unavailability import UnavailabilityPeriod
@@ -48,26 +47,19 @@ def seed():
         db.add_all(fleet)
         db.commit()
 
-        print("Seeding airports & routes...")
+        print("Seeding airports...")
         airports = [
-            Airport(iata_code="JFK", icao_code="KJFK", name="JFK Int'l", city="New York", country="USA"),
-            Airport(iata_code="LHR", icao_code="EGLL", name="Heathrow", city="London", country="UK"),
+            Airport(icao_code="KJFK", name="JFK Int'l", city="New York", country="USA"),
+            Airport(icao_code="EGLL", name="Heathrow", city="London", country="UK"),
         ]
         db.add_all(airports)
-        db.commit()
-
-        routes = [
-            Route(origin_code="JFK", destination_code="LHR", distance_km=5570.0, base_duration_minutes=420),
-            Route(origin_code="LHR", destination_code="JFK", distance_km=5570.0, base_duration_minutes=450),
-        ]
-        db.add_all(routes)
         db.commit()
 
         print("Seeding flights...")
         now = datetime.now(timezone.utc)
         flights = [
-            Flight(flight_number="FA101", aircraft_id=1, route_id=1, scheduled_departure=now + timedelta(hours=2), scheduled_arrival=now + timedelta(hours=9), status=FlightStatus.SCHEDULED),
-            Flight(flight_number="FA102", aircraft_id=2, route_id=2, scheduled_departure=now + timedelta(days=1), scheduled_arrival=now + timedelta(days=1, hours=8), status=FlightStatus.SCHEDULED),
+            Flight(flight_number="FA101", aircraft_id=1, origin_airport_id="KJFK", destination_airport_id="EGLL", scheduled_departure=now + timedelta(hours=2), scheduled_arrival=now + timedelta(hours=9), status=FlightStatus.SCHEDULED),
+            Flight(flight_number="FA102", aircraft_id=2, origin_airport_id="EGLL", destination_airport_id="KJFK", scheduled_departure=now + timedelta(days=1), scheduled_arrival=now + timedelta(days=1, hours=8), status=FlightStatus.SCHEDULED),
         ]
         db.add_all(flights)
         db.commit()

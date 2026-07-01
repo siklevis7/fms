@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 
 
 class AirportCreate(BaseModel):
-    iata_code: str = Field(..., min_length=3, max_length=3)
     icao_code: str = Field(..., min_length=4, max_length=4)
     name: str
     city: str

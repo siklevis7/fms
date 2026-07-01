@@ -55,6 +55,8 @@ class ApiService {
   activateEmployee(id)   { return this.request(`/employees/${id}/activate`,   { method: 'POST' }); }
   deactivateEmployee(id) { return this.request(`/employees/${id}/deactivate`, { method: 'POST' }); }
   deleteEmployee(id)     { return this.request(`/employees/${id}`, { method: 'DELETE' }); }
+  updateOwnProfile(d)    { return this.request('/employees/me/profile', { method: 'PATCH', body: JSON.stringify(d) }); }
+  getFlightHours(id)       { return this.request(`/employees/${id}/hours`); }
 
   // ── Aircraft ──────────────────────────────────────────────────────
   getFleet()             { return this.request('/aircraft/'); }
@@ -66,22 +68,35 @@ class ApiService {
   getAirports()          { return this.request('/airports/'); }
   createAirport(data)    { return this.request('/airports/', { method: 'POST', body: JSON.stringify(data) }); }
 
-  // ── Routes ────────────────────────────────────────────────────────
-  getRoutes()            { return this.request('/routes/'); }
-  createRoute(data)      { return this.request('/routes/', { method: 'POST', body: JSON.stringify(data) }); }
+  updateAirport(id, d)   { return this.request(`/airports/${id}`, { method: 'PATCH', body: JSON.stringify(d) }); }
+  deleteAirport(id)      { return this.request(`/airports/${id}`, { method: 'DELETE' }); }
 
   // ── Flights ───────────────────────────────────────────────────────
   getMyFlights()         { return this.request('/flights/my'); }
   getAllFlights()         { return this.request('/flights/'); }
   createFlight(data)     { return this.request('/flights/', { method: 'POST', body: JSON.stringify(data) }); }
   updateFlight(id, d)    { return this.request(`/flights/${id}`, { method: 'PATCH', body: JSON.stringify(d) }); }
+  completeFlight(id, d)  { return this.request(`/flights/${id}/complete`, { method: 'POST', body: JSON.stringify(d) }); }
   cancelFlight(id)       { return this.request(`/flights/${id}/cancel`, { method: 'POST' }); }
 
   // ── Assignments ───────────────────────────────────────────────────
-  getFlightCrew(fid)     { return this.request(`/assignments/flight/${fid}`); }
+  getFlightCrew(fid)       { return this.request(`/assignments/flight/${fid}`); }
   createAssignment(data) { return this.request('/assignments/', { method: 'POST', body: JSON.stringify(data) }); }
   deleteAssignment(id)   { return this.request(`/assignments/${id}`, { method: 'DELETE' }); }
   updateAssignment(id,d) { return this.request(`/assignments/${id}`, { method: 'PATCH', body: JSON.stringify(d) }); }
+  replaceAssignment(id, d) { return this.request(`/assignments/${id}/replace`, { method: 'PATCH', body: JSON.stringify(d) }); }
+  confirmAssignment(id)  { return this.request(`/assignments/${id}/confirm`, { method: 'POST' }); }
+
+  // ─── Unavailability ──────────────────────────────────────────────────
+  getUnavailability()         { return this.request('/unavailability/'); }
+  createUnavailability(data)  { return this.request('/unavailability/', { method: 'POST', body: JSON.stringify(data) }); }
+  deleteUnavailability(id)    { return this.request(`/unavailability/${id}`, { method: 'DELETE' }); }
+
+  // ─── Documents ───────────────────────────────────────────────────────
+  getDocuments(empId)         { return this.request(`/documents/${empId}`); }
+  createDocument(data)        { return this.request('/documents/', { method: 'POST', body: JSON.stringify(data) }); }
+  updateDocument(id, data)    { return this.request(`/documents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  deleteDocument(id)          { return this.request(`/documents/${id}`, { method: 'DELETE' }); }
 }
 
 const api = new ApiService();
