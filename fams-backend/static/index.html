@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAMS · Aviation Staff Management</title>
+  <meta name="description" content="Internal staff management portal for aviation crew — pilots, cabin crew, and mechanics.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+<!-- ─── Toast ──────────────────────────────────────────────────────── -->
+<div id="toast" class="hidden"></div>
+
+<!-- ─── Login View ─────────────────────────────────────────────────── -->
+<div id="login-view" class="hidden">
+  <!-- Left: Hero Panel -->
+  <div class="login-hero">
+    <div class="hero-logo">
+      <div class="hero-logo-mark">✈</div>
+      <div class="hero-logo-text">FAMS <span>/ Staff Portal</span></div>
+    </div>
+
+    <div class="hero-content">
+      <h2>Flight & Aviation<br>Staff Management</h2>
+      <p>A unified platform for pilots, cabin crew, and mechanics to view scheduled flights, manage crew assignments, and oversee the full fleet.</p>
+    </div>
+
+    <div class="hero-features">
+      <div class="hero-feature">
+        <div class="hero-feature-icon">🗓</div>
+        <span>View your personal flight schedule in real time</span>
+      </div>
+      <div class="hero-feature">
+        <div class="hero-feature-icon">✈</div>
+        <span>Fleet-wide status and route tracking</span>
+      </div>
+      <div class="hero-feature">
+        <div class="hero-feature-icon">👥</div>
+        <span>Admin-controlled crew assignment management</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Form Panel -->
+  <div class="login-form-panel">
+    <div class="login-form-wrap">
+      <h1>Sign in</h1>
+      <p>Enter your staff credentials to access the portal.</p>
+
+      <div id="login-error" class="hidden"></div>
+
+      <form id="login-form" autocomplete="on">
+        <div class="form-group">
+          <label for="login-email">Email address</label>
+          <input type="email" id="login-email" autocomplete="username"
+                 placeholder="name@fams.local" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" autocomplete="current-password"
+                 placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary login-submit-btn" id="login-btn">
+          <span id="login-btn-text">Sign in</span>
+        </button>
+      </form>
+
+      <div class="login-footer-note">
+        Access is restricted to authorized aviation staff only.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── App Shell ───────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo-mark">✈</div>
+      <div class="sidebar-title">FAMS</div>
+    </div>
+
+    <nav>
+      <div class="nav-label">Operations</div>
+      <a class="nav-link" href="#my-flights" id="nav-my-flights">
+        <span class="nav-link-icon">🗓</span> My Schedule
+      </a>
+      <a class="nav-link" href="#fleet" id="nav-fleet">
+        <span class="nav-link-icon">✈</span> Fleet & Flights
+      </a>
+
+      <div class="nav-label admin-only hidden" style="margin-top:0.5rem">Administration</div>
+      <a class="nav-link admin-only hidden" href="#manage-flights" id="nav-manage-flights">
+        <span class="nav-link-icon">🛫</span> Manage Flights
+      </a>
+      <a class="nav-link admin-only hidden" href="#assignments" id="nav-assignments">
+        <span class="nav-link-icon">📋</span> Crew Assignments
+      </a>
+      <a class="nav-link admin-only hidden" href="#employees" id="nav-employees">
+        <span class="nav-link-icon">👥</span> Staff Directory
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-tile">
+        <div class="user-avatar" id="user-avatar">—</div>
+        <div class="user-info">
+          <div class="user-info-name" id="user-name">Loading…</div>
+          <div class="user-info-role" id="user-role">—</div>
+        </div>
+      </div>
+      <button class="theme-toggle" id="theme-toggle-btn" onclick="Theme.toggle()">
+        <span id="theme-label">Light Mode</span>
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </button>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="App.logout()">
+        Sign out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div id="main-wrap">
+    <header id="page-header">
+      <h1 id="page-title">Dashboard</h1>
+      <div id="header-actions"></div>
+    </header>
+    <div id="view-container"></div>
+  </div>
+
+</div>
+
+<!-- ─── Modal Slot ──────────────────────────────────────────────────── -->
+<div id="modal-container"></div>
+
+<script src="api.js"></script>
+<script>
+  // Apply saved theme before scripts load to avoid flash
+  (function() {
+    const saved = localStorage.getItem('fams_theme') || 'dark';
+    if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  })();
+</script>
+<script src="app.js"></script>
+</body>
+</html>
