@@ -10,6 +10,12 @@ from app.crud import documents as crud_docs
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
+@router.get("/compliance/expiring", response_model=List[DocumentResponse])
+def get_expiring_documents(days_ahead: int = 90, db: Session = Depends(get_db), current_user: Employee = Depends(get_current_employee)):
+    if current_user.role not in [EmployeeRole.ADMIN, EmployeeRole.PERSONNEL]:
+        raise HTTPException(status_code=403, detail="Not authorized to view compliance dashboard")
+    return crud_docs.get_expiring_documents(db, days_ahead)
+
 @router.get("/{employee_id}", response_model=List[DocumentResponse])
 def get_employee_documents(employee_id: int, db: Session = Depends(get_db), current_user: Employee = Depends(get_current_employee)):
     if current_user.id != employee_id and current_user.role not in [EmployeeRole.ADMIN, EmployeeRole.PERSONNEL]:

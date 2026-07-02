@@ -70,50 +70,82 @@ def update_profile(db: Session, employee_id: int, update: ProfileUpdate) -> Empl
 
 def calculate_flight_hours(db: Session, employee_id: int) -> dict:
     now = datetime.now(timezone.utc)
-    # Define start times for daily, weekly, monthly, yearly
-    start_daily = now - timedelta(days=1)
-    start_weekly = now - timedelta(days=7)
-    start_monthly = now - timedelta(days=30)
-    start_yearly = now - timedelta(days=365)
+    
+    start_7d = now - timedelta(days=7)
+    start_14d = now - timedelta(days=14)
+    start_28d = now - timedelta(days=28)
+    start_365d = now - timedelta(days=365)
     
     assignments = db.query(CrewAssignment).join(Flight).filter(
         CrewAssignment.employee_id == employee_id,
         Flight.status.in_([
             FlightStatus.FINISHED,
             FlightStatus.DEPARTED,
+            FlightStatus.AIRBORNE,
+            FlightStatus.EN_ROUTE,
+            FlightStatus.APPROACH,
             FlightStatus.LANDED,
+            FlightStatus.GATE_ARRIVED,
         ])
     ).all()
     
-    hours = {"daily": 0, "weekly": 0, "monthly": 0, "yearly": 0}
+    flight_hours = {"last_28d": 0.0, "last_365d": 0.0}
+    duty_hours = {"last_7d": 0.0, "last_14d": 0.0, "last_28d": 0.0}
     
     for a in assignments:
         flight = a.flight
-        # Use actual departure/arrival if available, else scheduled
-        dep = flight.actual_departure or flight.scheduled_departure
-        arr = flight.actual_arrival or flight.scheduled_arrival
-        if not dep or not arr:
-            continue
-            
-        # Ensure timezone-aware comparisons
-        if dep.tzinfo is None:
-            dep = dep.replace(tzinfo=timezone.utc)
-        if arr.tzinfo is None:
-            arr = arr.replace(tzinfo=timezone.utc)
-            
-        duration_hours = (arr - dep).total_seconds() / 3600.0
         
-        if arr >= start_daily:
-            hours["daily"] += duration_hours
-        if arr >= start_weekly:
-            hours["weekly"] += duration_hours
-        if arr >= start_monthly:
-            hours["monthly"] += duration_hours
-        if arr >= start_yearly:
-            hours["yearly"] += duration_hours
+        # Flight Time (OFF to ON)
+        off = flight.off_time or flight.scheduled_departure
+        on = flight.on_time or flight.scheduled_arrival
+        if off and on:
+            if off.tzinfo is None: off = off.replace(tzinfo=timezone.utc)
+            if on.tzinfo is None: on = on.replace(tzinfo=timezone.utc)
             
-    # Round to 1 decimal place
-    return {k: round(v, 1) for k, v in hours.items()}
+            dur_flight = max(0, (on - off).total_seconds() / 3600.0)
+            if on >= start_28d: flight_hours["last_28d"] += dur_flight
+            if on >= start_365d: flight_hours["last_365d"] += dur_flight
+            
+        # Duty / Block Time (OUT to IN)
+        out_t = flight.out_time or flight.scheduled_departure
+        in_t = flight.in_time or flight.scheduled_arrival
+        if out_t and in_t:
+            if out_t.tzinfo is None: out_t = out_t.replace(tzinfo=timezone.utc)
+            if in_t.tzinfo is None: in_t = in_t.replace(tzinfo=timezone.utc)
+            
+            dur_duty = max(0, (in_t - out_t).total_seconds() / 3600.0)
+            if in_t >= start_7d: duty_hours["last_7d"] += dur_duty
+            if in_t >= start_14d: duty_hours["last_14d"] += dur_duty
+            if in_t >= start_28d: duty_hours["last_28d"] += dur_duty
+
+    # EASA Limits
+    limits = {
+        "flight_28d": 100.0,
+        "flight_365d": 900.0,
+        "duty_7d": 60.0,
+        "duty_14d": 110.0,
+        "duty_28d": 190.0
+    }
+    
+    return {
+        "flight_hours": {k: round(v, 1) for k, v in flight_hours.items()},
+        "duty_hours": {k: round(v, 1) for k, v in duty_hours.items()},
+        "limits": limits,
+        "compliance": {
+            "flight_28d_ok": flight_hours["last_28d"] <= limits["flight_28d"],
+            "flight_365d_ok": flight_hours["last_365d"] <= limits["flight_365d"],
+            "duty_7d_ok": duty_hours["last_7d"] <= limits["duty_7d"],
+            "duty_14d_ok": duty_hours["last_14d"] <= limits["duty_14d"],
+            "duty_28d_ok": duty_hours["last_28d"] <= limits["duty_28d"],
+            "is_legal": (
+                flight_hours["last_28d"] <= limits["flight_28d"] and 
+                flight_hours["last_365d"] <= limits["flight_365d"] and 
+                duty_hours["last_7d"] <= limits["duty_7d"] and 
+                duty_hours["last_14d"] <= limits["duty_14d"] and 
+                duty_hours["last_28d"] <= limits["duty_28d"]
+            )
+        }
+    }
 
 
 

@@ -110,7 +110,11 @@ def complete_flight(
     return crud.complete_flight(
         db,
         flight_id,
-        actual_departure=completion.actual_departure,
-        actual_arrival=completion.actual_arrival,
-        remaining_fuel=completion.remaining_fuel
+        out_time=completion.out_time,
+        off_time=completion.off_time,
+        on_time=completion.on_time,
+        in_time=completion.in_time,
+        remaining_fuel=completion.remaining_fuel,
+        delay_code=completion.delay_code,
+        delay_minutes=completion.delay_minutes
     )

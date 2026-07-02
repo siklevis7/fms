@@ -31,3 +31,10 @@ def delete_document(db: Session, doc_id: int):
         db.delete(db_doc)
         db.commit()
     return db_doc
+
+def get_expiring_documents(db: Session, days_ahead: int = 90):
+    from datetime import datetime, timedelta
+    cutoff_date = datetime.now().date() + timedelta(days=days_ahead)
+    return db.query(EmployeeDocument).filter(
+        EmployeeDocument.expiry_date <= cutoff_date
+    ).order_by(EmployeeDocument.expiry_date.asc()).all()
