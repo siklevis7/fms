@@ -33,6 +33,14 @@ class ApiService {
     return res.json();
   }
 
+  // ── Public ────────────────────────────────────────────────────────
+  async getConfig() {
+    // No auth token needed — public endpoint
+    const res = await fetch('/api/v1/config');
+    if (!res.ok) return null;
+    return res.json();
+  }
+
   // ── Auth ──────────────────────────────────────────────────────────
   async login(email, password) {
     const body = new URLSearchParams({ username: email, password });

@@ -9,6 +9,7 @@ class AircraftCreate(BaseModel):
     year_manufactured: int | None = Field(None, ge=1900, le=2100)
     total_seats: int = Field(..., gt=0)
     status: AircraftStatus = AircraftStatus.ACTIVE
+    min_turnaround_minutes: int = Field(30, ge=5, le=480, description="Minimum turnaround time in minutes")
     notes: str | None = None
 
 
@@ -19,6 +20,7 @@ class AircraftUpdate(BaseModel):
     year_manufactured: int | None = Field(None, ge=1900, le=2100)
     total_seats: int | None = Field(None, gt=0)
     status: AircraftStatus | None = None
+    min_turnaround_minutes: int | None = Field(None, ge=5, le=480)
     notes: str | None = None
 
 
@@ -27,6 +29,7 @@ class AircraftBrief(BaseModel):
     registration_number: str
     model: str
     manufacturer: str
+    total_seats: int
     status: AircraftStatus
 
     model_config = {"from_attributes": True}

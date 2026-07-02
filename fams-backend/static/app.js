@@ -1,10 +1,10 @@
 /* ===================================================================
-   FAMS · app.js
+   Aviation Staff Management System · app.js
    =================================================================== */
 
 // ─── Theme Controller ─────────────────────────────────────────────
 const Theme = {
-  current: localStorage.getItem('fams_theme') || 'dark',
+  current: localStorage.getItem('sms_theme') || 'dark',
 
   init() {
     this._apply(this.current);
@@ -12,7 +12,7 @@ const Theme = {
 
   toggle() {
     this.current = this.current === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('fams_theme', this.current);
+    localStorage.setItem('sms_theme', this.current);
     this._apply(this.current);
   },
 
@@ -33,9 +33,17 @@ Theme.init();
 
 const $ = (id) => document.getElementById(id);
 
+// Combine a date input and a time input into an ISO string
+function dtVal(dateId, timeId) {
+  const d = $(dateId).value;
+  const t = $(timeId).value || '00:00';
+  if (!d) return null;
+  return new Date(`${d}T${t}:00`).toISOString();
+}
+
 const fmt = {
   date:     (s) => s ? new Date(s).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—',
-  time:     (s) => s ? new Date(s).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) : '—',
+  time:     (s) => s ? new Date(s).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12: false }) : '—',
   datetime: (s) => s ? `${fmt.date(s)}, ${fmt.time(s)}` : '—',
   duration: (a, b) => {
     if (!a || !b) return '—';
@@ -58,11 +66,11 @@ function badge(s) {
 
 function processFlights(flights) {
   const now = new Date();
+  const activeStatuses = new Set(['Scheduled', 'Boarding', 'Delayed']);
+  const terminalStatuses = new Set(['Finished', 'Cancelled', 'Landed', 'In Progress']);
   return flights.map(f => {
-    if (f.status === 'Scheduled' || f.status === 'Boarding' || f.status === 'Delayed') {
-      if (new Date(f.scheduled_departure) <= now) {
-        f.status = 'In Progress';
-      }
+    if (activeStatuses.has(f.status) && new Date(f.scheduled_departure) <= now) {
+      f.status = 'In Progress';
     }
     return f;
   });
@@ -95,9 +103,16 @@ function empty(icon, title, sub = '') {
 // ─── App Controller ────────────────────────────────────────────────
 const App = {
   user: null,
+  config: null, // airline branding loaded from /api/v1/config
 
   async init() {
     document.addEventListener('DOMContentLoaded', async () => {
+      // Load airline branding first (no auth needed)
+      try {
+        this.config = await api.getConfig();
+        this._applyBranding();
+      } catch { /* non-fatal — server might be starting */ }
+
       if (api.isAuth) {
         try {
           this.user = await api.getMe();
@@ -110,6 +125,33 @@ const App = {
       $('login-form').addEventListener('submit', (e) => this.handleLogin(e));
       if (api.isAuth) this.route();
     });
+  },
+
+  _applyBranding() {
+    const c = this.config;
+    if (!c) return;
+    const name = c.airline_name || 'Staff Portal';
+    const icao = c.airline_icao || '';
+
+    // Browser tab title
+    const tabTitle = $('page-tab-title');
+    if (tabTitle) tabTitle.textContent = `${name} · Staff Portal`;
+
+    // Login hero
+    const heroText = $('hero-logo-text');
+    if (heroText) heroText.innerHTML = `${icao} <span>/ Staff Portal</span>`;
+    const heroHeadline = $('hero-headline');
+    if (heroHeadline) heroHeadline.innerHTML = `${name}<br>Staff Portal`;
+
+    // Sidebar airline name
+    const sidebarName = $('sidebar-airline-name');
+    if (sidebarName) sidebarName.textContent = icao || name;
+
+    // CSS primary colour override (if set to non-default)
+    if (c.airline_primary_color && c.airline_primary_color !== '#6366f1') {
+      document.documentElement.style.setProperty('--accent', c.airline_primary_color);
+      document.documentElement.style.setProperty('--accent-hover', c.airline_primary_color + 'dd');
+    }
   },
 
   _showLogin() {
@@ -264,11 +306,11 @@ const App = {
             <div style="display:flex;gap:1rem;margin-bottom:1.5rem">
               <div style="background:var(--bg);padding:1rem;border-radius:6px;flex:1;text-align:center">
                 <div style="font-size:0.875rem;color:var(--text-400)">Total Hours</div>
-                <div style="font-size:1.5rem;font-weight:700">${flightHours.yearly}h</div>
+                <div style="font-size:1.5rem;font-weight:700">${(flightHours||{yearly:0}).yearly}h</div>
               </div>
               <div style="background:var(--bg);padding:1rem;border-radius:6px;flex:1;text-align:center">
                 <div style="font-size:0.875rem;color:var(--text-400)">This Month</div>
-                <div style="font-size:1.5rem;font-weight:700">${flightHours.monthly}h</div>
+                <div style="font-size:1.5rem;font-weight:700">${(flightHours||{monthly:0}).monthly}h</div>
               </div>
             </div>
             ${pastFlights.length ? `
@@ -812,7 +854,7 @@ const App = {
                   <option>Pilot</option><option>CabinCrew</option><option>Mechanic</option><option>Admin</option>
                 </select>
               </div>
-              <div class="form-group"><label>Password</label><input type="password" id="e-pass" minlength="6" placeholder="Min 6 characters" required></div>
+              <div class="form-group"><label>Password</label><input type="password" id="e-pass" minlength="8" placeholder="Min 8 chars, must include a digit" required></div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -823,8 +865,10 @@ const App = {
       </div>`);
     $('emp-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const pass = $('e-pass').value;
+      if (!/\d/.test(pass)) { toast('Password must contain at least one digit', 'error'); return; }
       try {
-        await api.createEmployee({ employee_number:$('e-num').value, full_name:$('e-name').value, email:$('e-email').value, role:$('e-role').value, password:$('e-pass').value });
+        await api.createEmployee({ employee_number:$('e-num').value, full_name:$('e-name').value, email:$('e-email').value, role:$('e-role').value, password: pass });
         toast('Employee created'); closeModal(); this.viewEmployees();
       } catch(err) { toast(err.message,'error'); }
     });
@@ -940,8 +984,12 @@ const App = {
           <div class="modal-header"><h2>Complete ${num}</h2><button class="modal-close" onclick="closeModal()">×</button></div>
           <form id="comp-form">
             <div class="form-row">
-              <div class="form-group"><label>Actual Departure</label><input type="datetime-local" id="comp-dep" required></div>
-              <div class="form-group"><label>Actual Arrival</label><input type="datetime-local" id="comp-arr" required></div>
+              <div class="form-group"><label>Actual Departure Date</label><input type="date" id="comp-dep-d" required></div>
+              <div class="form-group"><label>Actual Departure Time</label><input type="time" id="comp-dep-t" step="60" required></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Actual Arrival Date</label><input type="date" id="comp-arr-d" required></div>
+              <div class="form-group"><label>Actual Arrival Time</label><input type="time" id="comp-arr-t" step="60" required></div>
             </div>
             <div class="form-group"><label>Remaining Fuel</label><input type="number" step="0.1" id="comp-fuel" placeholder="e.g. 5200.5" required></div>
             <div class="modal-footer">
@@ -953,13 +1001,19 @@ const App = {
       </div>`);
     $('comp-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const dep = new Date(dtVal('comp-dep-d', 'comp-dep-t'));
+      const arr = new Date(dtVal('comp-arr-d', 'comp-arr-t'));
+      if (arr <= dep) {
+        toast('Actual arrival must be after actual departure', 'error');
+        return;
+      }
       try {
         await api.completeFlight(id, { 
-          actual_departure: new Date($('comp-dep').value).toISOString(),
-          actual_arrival: new Date($('comp-arr').value).toISOString(),
+          actual_departure: dep.toISOString(),
+          actual_arrival: arr.toISOString(),
           remaining_fuel: parseFloat($('comp-fuel').value)
         });
-        toast('Flight completed'); closeModal(); this.route();
+        toast('Flight completed successfully'); closeModal(); this.route();
       } catch(err) { toast(err.message,'error'); }
     });
   },
@@ -995,8 +1049,12 @@ const App = {
               </div>
             </div>
             <div class="form-row">
-              <div class="form-group"><label>Departure</label><input type="datetime-local" id="fl-dep" required></div>
-              <div class="form-group"><label>Arrival</label><input type="datetime-local" id="fl-arr" required></div>
+              <div class="form-group"><label>Departure Date</label><input type="date" id="fl-dep-d" required></div>
+              <div class="form-group"><label>Departure Time</label><input type="time" id="fl-dep-t" step="60" required></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Arrival Date</label><input type="date" id="fl-arr-d" required></div>
+              <div class="form-group"><label>Arrival Time</label><input type="time" id="fl-arr-t" step="60" required></div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -1013,8 +1071,8 @@ const App = {
           aircraft_id: parseInt($('fl-ac').value),
           origin_airport_id: $('fl-origin').value,
           destination_airport_id: $('fl-dest').value,
-          scheduled_departure: new Date($('fl-dep').value).toISOString(),
-          scheduled_arrival: new Date($('fl-arr').value).toISOString()
+          scheduled_departure: dtVal('fl-dep-d', 'fl-dep-t'),
+          scheduled_arrival:   dtVal('fl-arr-d', 'fl-arr-t')
         });
         toast('Flight scheduled'); 
         closeModal(); 
@@ -1161,8 +1219,12 @@ const App = {
 
   // ─── Quick actions ───────────────────────────────────────────────
   async cancelFlight(id) {
-    if (!confirm('Cancel this flight? This action cannot be undone.')) return;
-    try { await api.cancelFlight(id); toast('Flight cancelled'); this.viewFleet(); }
+    if (!confirm('Cancel this flight? This cannot be undone.')) return;
+    try { 
+      await api.cancelFlight(id); 
+      toast('Flight cancelled'); 
+      this.viewManageFlights(); 
+    }
     catch(err) { toast(err.message,'error'); }
   },
   async activateEmp(id) {

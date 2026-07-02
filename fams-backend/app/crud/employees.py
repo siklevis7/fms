@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import hash_password
 from app.models.employee import Employee
-from app.models.flight import Flight
+from app.models.flight import Flight, FlightStatus
 from app.models.crew_assignment import CrewAssignment
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, ProfileUpdate
 from datetime import datetime, timedelta, timezone
@@ -78,7 +78,11 @@ def calculate_flight_hours(db: Session, employee_id: int) -> dict:
     
     assignments = db.query(CrewAssignment).join(Flight).filter(
         CrewAssignment.employee_id == employee_id,
-        Flight.status.in_([FlightStatus.FINISHED, FlightStatus.DEPARTED, FlightStatus.LANDED])
+        Flight.status.in_([
+            FlightStatus.FINISHED,
+            FlightStatus.DEPARTED,
+            FlightStatus.LANDED,
+        ])
     ).all()
     
     hours = {"daily": 0, "weekly": 0, "monthly": 0, "yearly": 0}

@@ -10,12 +10,12 @@ from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeRespons
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
 
-@router.get("/", response_model=list[EmployeeResponse], summary="List all employees")
+@router.get("/", response_model=list[EmployeeResponse], summary="List all employees (Admin only)")
 def list_employees(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 200,
     db: Session = Depends(get_db),
-    _=Depends(get_current_employee)  # Require login, but any role can list employees (or maybe just admin? Let's say all for now)
+    _=Depends(require_admin)
 ):
     return crud.get_employees(db, skip=skip, limit=limit)
 

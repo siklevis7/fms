@@ -13,13 +13,13 @@ from app.routers import auth, employees, aircraft, airports, flights, assignment
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title=settings.APP_NAME,
+    title=f"{settings.AIRLINE_NAME} — Staff Management System",
     version=settings.APP_VERSION,
     description=(
         "Internal staff management API for aviation personnel. "
         "Supports JWT authentication and Role-Based Access Control (RBAC)."
     ),
-    contact={"name": "FAMS AG Admin Team"},
+    contact={"name": f"{settings.AIRLINE_NAME} Admin Team"},
 )
 
 app.add_middleware(
@@ -42,9 +42,21 @@ app.include_router(unavailability.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 
 
+@app.get("/api/v1/config", tags=["Config"], summary="Public airline branding config (no auth required)")
+def get_public_config():
+    """Returns airline branding and configuration for the frontend. No authentication required."""
+    return {
+        "airline_name": settings.AIRLINE_NAME,
+        "airline_icao": settings.AIRLINE_ICAO,
+        "airline_country": settings.AIRLINE_COUNTRY,
+        "airline_primary_color": settings.AIRLINE_PRIMARY_COLOR,
+        "app_version": settings.APP_VERSION,
+    }
+
+
 @app.get("/health", tags=["Health"])
 def health_check():
-    return {"status": "ok", "service": settings.APP_NAME, "version": settings.APP_VERSION}
+    return {"status": "ok", "airline": settings.AIRLINE_NAME, "version": settings.APP_VERSION}
 
 
 from sqlalchemy.exc import IntegrityError

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FAMS · Aviation Staff Management</title>
-  <meta name="description" content="Internal staff management portal for aviation crew — pilots, cabin crew, and mechanics.">
+  <title id="page-tab-title">Staff Portal</title>
+  <meta name="description" id="page-meta-desc" content="Internal staff management portal for aviation crew — pilots, cabin crew, and mechanics.">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="index.css">
 </head>
@@ -18,13 +18,13 @@
   <!-- Left: Hero Panel -->
   <div class="login-hero">
     <div class="hero-logo">
-      <div class="hero-logo-mark">✈</div>
-      <div class="hero-logo-text">FAMS <span>/ Staff Portal</span></div>
+      <div class="hero-logo-mark" id="hero-logo-mark">✈</div>
+      <div class="hero-logo-text" id="hero-logo-text">Staff <span>/ Portal</span></div>
     </div>
 
     <div class="hero-content">
-      <h2>Flight & Aviation<br>Staff Management</h2>
-      <p>A unified platform for pilots, cabin crew, and mechanics to view scheduled flights, manage crew assignments, and oversee the full fleet.</p>
+      <h2 id="hero-headline">Staff Management<br>Portal</h2>
+      <p id="hero-subtext">A unified platform for pilots, cabin crew, and mechanics to view scheduled flights, manage crew assignments, and oversee the full fleet.</p>
     </div>
 
     <div class="hero-features">
@@ -53,9 +53,9 @@
 
       <form id="login-form" autocomplete="on">
         <div class="form-group">
-          <label for="login-email">Email address</label>
-          <input type="email" id="login-email" autocomplete="username"
-                 placeholder="name@fams.local" required>
+          <label for="login-email">Email or Employee Number</label>
+          <input type="text" id="login-email" autocomplete="username"
+                 placeholder="name@airline.com or EMP-001" required>
         </div>
         <div class="form-group">
           <label for="login-password">Password</label>
@@ -81,7 +81,7 @@
   <aside id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo-mark">✈</div>
-      <div class="sidebar-title">FAMS</div>
+      <div class="sidebar-title" id="sidebar-airline-name">Loading…</div>
     </div>
 
     <nav>
@@ -157,7 +157,7 @@
 <script>
   // Apply saved theme before scripts load to avoid flash
   (function() {
-    const saved = localStorage.getItem('fams_theme') || 'dark';
+    const saved = localStorage.getItem('sms_theme') || 'dark';
     if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
   })();
 </script>
