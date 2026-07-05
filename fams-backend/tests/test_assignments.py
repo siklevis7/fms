@@ -7,11 +7,11 @@ def setup_flight(client, admin_token, pilot_id):
     }, headers={"Authorization": f"Bearer {admin_token}"})
     
     client.post("/api/v1/airports/", json={
-        "iata_code": "AAA", "icao_code": "KAAA", "name": "A", "city": "A", "country": "A"
+        "icao_code": "KAAA", "name": "A", "city": "A", "country": "A"
     }, headers={"Authorization": f"Bearer {admin_token}"})
     
     client.post("/api/v1/airports/", json={
-        "iata_code": "BBB", "icao_code": "KBBB", "name": "B", "city": "B", "country": "B"
+        "icao_code": "KBBB", "name": "B", "city": "B", "country": "B"
     }, headers={"Authorization": f"Bearer {admin_token}"})
     
     route = client.post("/api/v1/routes/", json={
@@ -22,7 +22,8 @@ def setup_flight(client, admin_token, pilot_id):
     flight = client.post("/api/v1/flights/", json={
         "flight_number": "TEST1",
         "aircraft_id": 1,
-        "route_id": route["id"],
+        "origin_airport_id": "KAAA",
+        "destination_airport_id": "KBBB",
         "scheduled_departure": (now + timedelta(hours=1)).isoformat(),
         "scheduled_arrival": (now + timedelta(hours=2)).isoformat(),
     }, headers={"Authorization": f"Bearer {admin_token}"}).json()

@@ -118,3 +118,51 @@ def complete_flight(
         delay_code=completion.delay_code,
         delay_minutes=completion.delay_minutes
     )
+
+
+@router.get("/{flight_id}/readiness", summary="Check flight readiness (minimum crew complement)")
+def check_flight_readiness(
+    flight_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_employee)
+):
+    import math
+    from app.models.crew_assignment import DutyRole, AssignmentStatus
+    from app.crud.assignments import get_assignments_for_flight
+    
+    flight = crud.get_flight(db, flight_id)
+    if not flight:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flight not found")
+        
+    aircraft = flight.aircraft
+    if not aircraft:
+        return {"ready": False, "reason": "No aircraft assigned"}
+        
+    assignments = get_assignments_for_flight(db, flight_id)
+    active_assignments = [a for a in assignments if a.status != AssignmentStatus.REMOVED and a.status != AssignmentStatus.STANDBY]
+    
+    captains = sum(1 for a in active_assignments if a.duty_role == DutyRole.CAPTAIN)
+    first_officers = sum(1 for a in active_assignments if a.duty_role == DutyRole.FIRST_OFFICER)
+    flight_attendants = sum(1 for a in active_assignments if a.duty_role == DutyRole.FLIGHT_ATTENDANT)
+    
+    # Rules
+    pilots_ready = captains >= 1 and (captains + first_officers) >= 2
+    required_fa = math.ceil(aircraft.total_seats / 50.0)
+    fa_ready = flight_attendants >= required_fa
+    
+    reasons = []
+    if not pilots_ready:
+        reasons.append(f"Need at least 1 Captain and 2 total pilots (have {captains} CPT, {first_officers} FO)")
+    if not fa_ready:
+        reasons.append(f"Need at least {required_fa} Flight Attendants for {aircraft.total_seats} seats (have {flight_attendants})")
+        
+    return {
+        "ready": pilots_ready and fa_ready,
+        "reasons": reasons,
+        "crew_counts": {
+            "captains": captains,
+            "first_officers": first_officers,
+            "flight_attendants": flight_attendants,
+            "required_flight_attendants": required_fa
+        }
+    }

@@ -230,6 +230,8 @@ const App = {
     } catch(e) {
       vc.innerHTML = `<div class="empty-state"><p style="color:#fca5a5">${e.message}</p></div>`;
     }
+    
+    setTimeout(() => this.checkNotifications(), 500);
   },
 
   // ─── My Profile ──────────────────────────────────────────────────
@@ -611,14 +613,30 @@ const App = {
   },
 
   async viewCrewManifest(flightId, flightNumber) {
-    const [crew, employees] = await Promise.all([api.getFlightCrew(flightId), api.getEmployees()]);
+    const [crew, employees, readiness] = await Promise.all([
+      api.getFlightCrew(flightId),
+      api.getEmployees(),
+      api.checkFlightReadiness(flightId).catch(() => ({ ready: false, reasons: ['Could not load readiness'] }))
+    ]);
     showModal(`
       <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-        <div class="modal">
+        <div class="modal" style="max-width:800px">
           <div class="modal-header">
             <h2>Crew Manifest — ${flightNumber}</h2>
             <button class="modal-close" onclick="closeModal()">×</button>
           </div>
+          
+          <div style="background:var(--bg); border: 1px solid ${readiness.ready ? '#10b981' : '#ef4444'}; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem">
+            <div style="font-weight: 600; color: ${readiness.ready ? '#10b981' : '#ef4444'}; margin-bottom: 0.5rem;">
+              ${readiness.ready ? '✅ Flight is fully crewed and ready' : '⚠️ Missing Required Crew'}
+            </div>
+            ${!readiness.ready && readiness.reasons ? `
+              <ul style="margin: 0; padding-left: 1.5rem; font-size: 0.875rem; color: var(--text-200);">
+                ${readiness.reasons.map(r => `<li>${r}</li>`).join('')}
+              </ul>
+            ` : ''}
+          </div>
+
           ${crew.length ? `
             <div class="table-wrap" style="margin-bottom:1.5rem">
               <table>
@@ -630,6 +648,7 @@ const App = {
                     <td style="color:var(--text-400)">${c.duty_role}</td>
                     <td>${badge(c.status)}</td>
                     <td class="row-actions">
+                      ${c.status !== 'Standby' ? `<button class="btn btn-secondary btn-sm" onclick="App.updateAssignmentStatus(${c.assignment_id}, ${flightId}, '${flightNumber}', 'Standby')">Set Standby</button>` : `<button class="btn btn-success btn-sm" onclick="App.updateAssignmentStatus(${c.assignment_id}, ${flightId}, '${flightNumber}', 'Assigned')">Set Active</button>`}
                       <button class="btn btn-secondary btn-sm" onclick="App.modalReplaceCrewMember(${c.assignment_id}, ${flightId}, '${flightNumber}', '${c.employee.role}', '${c.duty_role}')">Replace</button>
                       <button class="btn btn-danger btn-sm" onclick="App.removeCrewMember(${c.assignment_id},${flightId},'${flightNumber}')">Remove</button>
                     </td>
@@ -683,6 +702,14 @@ const App = {
     try {
       await api.deleteAssignment(assignId);
       toast('Crew member removed');
+      this.viewCrewManifest(flightId, flightNumber);
+    } catch(err) { toast(err.message, 'error'); }
+  },
+
+  async updateAssignmentStatus(assignId, flightId, flightNumber, status) {
+    try {
+      await api.updateAssignment(assignId, { status });
+      toast(`Status updated to ${status}`);
       this.viewCrewManifest(flightId, flightNumber);
     } catch(err) { toast(err.message, 'error'); }
   },
@@ -756,40 +783,84 @@ const App = {
   },
 
   async viewCompliance() {
-    $('page-title').textContent = 'Compliance & Hours';
+    $('page-title').textContent = 'Compliance & Document Tracking';
     const employees = (await api.getEmployees()).filter(e => ['Pilot', 'CabinCrew'].includes(e.role));
     const vc = $('view-container');
     vc.innerHTML = skeleton();
     
-    // Fetch hours for all crew
-    const hoursData = await Promise.all(employees.map(e => api.getFlightHours(e.id).catch(() => ({daily:0,weekly:0,monthly:0,yearly:0}))));
-    // Fetch docs for all crew
-    const docsData = await Promise.all(employees.map(e => api.getDocuments(e.id).catch(() => [])));
+    // Fetch hours and limits for all crew
+    const hoursData = await Promise.all(employees.map(e => api.getFlightHours(e.id).catch(() => null)));
+    const expiringDocs = await api.getExpiringDocuments(90).catch(() => []);
+    localStorage.setItem('last_viewed_compliance_count', expiringDocs.length);
+    this.checkNotifications();
     
     const now = new Date();
     
     vc.innerHTML = `
+      <div class="section-header">
+        <div class="section-title">Action Required: Expiring Documents (90 Days)</div>
+      </div>
+      <div class="table-wrap fade-in" style="margin-bottom: 2rem">
+        ${expiringDocs.length ? `
+        <table style="font-size:0.875rem">
+          <thead><tr><th>Employee</th><th>Type</th><th>Ref #</th><th>Expiry Date</th><th>Status</th></tr></thead>
+          <tbody>
+            ${expiringDocs.map(d => {
+              const emp = employees.find(e => e.id === d.employee_id);
+              const name = emp ? emp.full_name : 'Unknown';
+              const diff = (new Date(d.expiry_date) - now) / (1000*60*60*24);
+              const isExpired = diff < 0;
+              return `<tr>
+                <td style="font-weight:600">${name}</td>
+                <td>${d.document_type}</td>
+                <td>${d.reference_number || '—'}</td>
+                <td style="color:#ef4444;font-weight:600">${fmt.date(d.expiry_date)}</td>
+                <td>${isExpired ? '<span class="badge badge-red">Expired</span>' : '<span class="badge badge-yellow">Expiring Soon</span>'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        ` : '<div style="padding:2rem;text-align:center;color:var(--text-600)">All crew documents are up to date.</div>'}
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">EASA Flight & Duty Time Limitations (FTL)</div>
+      </div>
       <div class="table-wrap fade-in">
         <table style="font-size:0.85rem">
-          <thead><tr><th>Employee</th><th>Role</th><th>Daily</th><th>Weekly</th><th>Monthly</th><th>Yearly</th><th>Documents</th></tr></thead>
+          <thead><tr><th>Employee</th><th>Role</th><th>Flight (28d)</th><th>Flight (365d)</th><th>Duty (7d)</th><th>Duty (14d)</th><th>Duty (28d)</th><th>Legal</th></tr></thead>
           <tbody>
             ${employees.map((e, i) => {
-              const h = hoursData[i];
-              const docs = docsData[i];
-              const expDocs = docs.filter(d => (new Date(d.expiry_date) - now) / (1000*60*60*24) <= 30);
-              const isP = e.role === 'Pilot';
-              // Check limits (example: Pilot 8 daily, 30 weekly, 100 monthly, 1000 yearly. Crew: 900 yearly)
-              const maxD=8, maxW=30, maxM=100, maxY=isP?1000:900;
-              const warn = h.daily>=maxD||h.weekly>=maxW||h.monthly>=maxM||h.yearly>=maxY;
+              const data = hoursData[i];
+              if (!data || !data.flight_hours) return `<tr><td style="font-weight:600">${e.full_name}</td><td colspan="7">No data</td></tr>`;
+              
+              const fh = data.flight_hours;
+              const dh = data.duty_hours;
+              const lim = data.limits;
+              const comp = data.compliance;
+              
+              const pb = (val, max) => {
+                const pct = Math.min(100, (val / max) * 100);
+                const color = pct >= 90 ? '#ef4444' : pct >= 75 ? '#eab308' : '#10b981';
+                return `
+                  <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:2px">
+                    <span>${val}h</span><span style="color:var(--text-400)">${max}h</span>
+                  </div>
+                  <div style="width:100px;height:4px;background:var(--bg);border-radius:2px;overflow:hidden">
+                    <div style="width:${pct}%;height:100%;background:${color}"></div>
+                  </div>
+                `;
+              };
               
               return `<tr>
                 <td style="font-weight:600">${e.full_name}</td>
                 <td>${badge(e.role)}</td>
-                <td style="${h.daily>=maxD?'color:#ef4444;font-weight:bold':''}"><span title="Max ${maxD}">${h.daily}h</span></td>
-                <td style="${h.weekly>=maxW?'color:#ef4444;font-weight:bold':''}"><span title="Max ${maxW}">${h.weekly}h</span></td>
-                <td style="${h.monthly>=maxM?'color:#ef4444;font-weight:bold':''}"><span title="Max ${maxM}">${h.monthly}h</span></td>
-                <td style="${h.yearly>=maxY?'color:#ef4444;font-weight:bold':''}"><span title="Max ${maxY}">${h.yearly}h</span></td>
-                <td>${expDocs.length ? `<span style="color:#ef4444;font-weight:bold">⚠️ ${expDocs.length} Expiring</span>` : `<span style="color:#10b981">✓ OK</span>`}</td>
+                <td>${pb(fh.last_28d, lim.flight_28d)}</td>
+                <td>${pb(fh.last_365d, lim.flight_365d)}</td>
+                <td>${pb(dh.last_7d, lim.duty_7d)}</td>
+                <td>${pb(dh.last_14d, lim.duty_14d)}</td>
+                <td>${pb(dh.last_28d, lim.duty_28d)}</td>
+                <td>${comp.is_legal ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>'}</td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -804,6 +875,8 @@ const App = {
       <button class="btn btn-secondary btn-sm" onclick="App.modalAddAirport()">Add Airport</button>
       <button class="btn btn-primary btn-sm" onclick="App.modalScheduleFlight()">Schedule Flight</button>`;
     const flights = processFlights(await api.getAllFlights());
+    localStorage.setItem('last_viewed_flights_count', (await api.getAllFlights()).length);
+    this.checkNotifications();
     const vc = $('view-container');
 
     vc.innerHTML = `
@@ -890,8 +963,9 @@ const App = {
             </div>
             <div class="form-row">
               <div class="form-group"><label>Seats</label><input type="number" id="ac-seats" placeholder="180" min="1" required></div>
-              <div class="form-group"><label>Status</label><select id="ac-status"><option>Active</option><option>Maintenance</option><option>Retired</option></select></div>
+              <div class="form-group"><label>Min Turnaround (min)</label><input type="number" id="ac-turn" value="30" min="5" required></div>
             </div>
+            <div class="form-group"><label>Status</label><select id="ac-status"><option>Active</option><option>Maintenance</option><option>AOG</option><option>MEL</option><option>Retired</option></select></div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
               <button type="submit" class="btn btn-primary">Add to Fleet</button>
@@ -902,7 +976,7 @@ const App = {
     $('ac-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
-        await api.createAircraft({ registration_number:$('ac-reg').value, manufacturer:$('ac-mfr').value, model:$('ac-mdl').value, total_seats:parseInt($('ac-seats').value), year_manufactured:$('ac-yr').value?parseInt($('ac-yr').value):null, status:$('ac-status').value });
+        await api.createAircraft({ registration_number:$('ac-reg').value, manufacturer:$('ac-mfr').value, model:$('ac-mdl').value, total_seats:parseInt($('ac-seats').value), year_manufactured:$('ac-yr').value?parseInt($('ac-yr').value):null, min_turnaround_minutes:parseInt($('ac-turn').value), status:$('ac-status').value });
         toast('Aircraft added'); closeModal(); this.viewFleet();
       } catch(err) { toast(err.message,'error'); }
     });
@@ -923,6 +997,8 @@ const App = {
               <div class="form-group"><label>Status</label><select id="eac-status">
                 <option ${status==='Active'?'selected':''}>Active</option>
                 <option ${status==='Maintenance'?'selected':''}>Maintenance</option>
+                <option ${status==='AOG'?'selected':''}>AOG</option>
+                <option ${status==='MEL'?'selected':''}>MEL</option>
                 <option ${status==='Retired'?'selected':''}>Retired</option>
               </select></div>
             </div>
@@ -980,18 +1056,29 @@ const App = {
   async modalCompleteFlight(id, num) {
     showModal(`
       <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-        <div class="modal" style="max-width:400px">
-          <div class="modal-header"><h2>Complete ${num}</h2><button class="modal-close" onclick="closeModal()">×</button></div>
+        <div class="modal" style="max-width:500px">
+          <div class="modal-header"><h2>Complete ${num} (OOOI)</h2><button class="modal-close" onclick="closeModal()">×</button></div>
           <form id="comp-form">
             <div class="form-row">
-              <div class="form-group"><label>Actual Departure Date</label><input type="date" id="comp-dep-d" required></div>
-              <div class="form-group"><label>Actual Departure Time</label><input type="time" id="comp-dep-t" step="60" required></div>
+              <div class="form-group"><label>OUT Date/Time (Pushback)</label>
+                <div style="display:flex;gap:0.5rem"><input type="date" id="comp-out-d" required><input type="time" id="comp-out-t" step="60" required></div>
+              </div>
+              <div class="form-group"><label>OFF Date/Time (Takeoff)</label>
+                <div style="display:flex;gap:0.5rem"><input type="date" id="comp-off-d" required><input type="time" id="comp-off-t" step="60" required></div>
+              </div>
             </div>
             <div class="form-row">
-              <div class="form-group"><label>Actual Arrival Date</label><input type="date" id="comp-arr-d" required></div>
-              <div class="form-group"><label>Actual Arrival Time</label><input type="time" id="comp-arr-t" step="60" required></div>
+              <div class="form-group"><label>ON Date/Time (Landing)</label>
+                <div style="display:flex;gap:0.5rem"><input type="date" id="comp-on-d" required><input type="time" id="comp-on-t" step="60" required></div>
+              </div>
+              <div class="form-group"><label>IN Date/Time (Gate Arrival)</label>
+                <div style="display:flex;gap:0.5rem"><input type="date" id="comp-in-d" required><input type="time" id="comp-in-t" step="60" required></div>
+              </div>
             </div>
-            <div class="form-group"><label>Remaining Fuel</label><input type="number" step="0.1" id="comp-fuel" placeholder="e.g. 5200.5" required></div>
+            <div class="form-row">
+              <div class="form-group"><label>Remaining Fuel</label><input type="number" step="0.1" id="comp-fuel" placeholder="5200.5" required></div>
+              <div class="form-group"><label>IATA Delay Code</label><input id="comp-delay" placeholder="e.g. 81" maxlength="2"></div>
+            </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
               <button type="submit" class="btn btn-success">Complete</button>
@@ -1001,17 +1088,26 @@ const App = {
       </div>`);
     $('comp-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const dep = new Date(dtVal('comp-dep-d', 'comp-dep-t'));
-      const arr = new Date(dtVal('comp-arr-d', 'comp-arr-t'));
-      if (arr <= dep) {
-        toast('Actual arrival must be after actual departure', 'error');
+      const out_t = new Date(dtVal('comp-out-d', 'comp-out-t'));
+      const off_t = new Date(dtVal('comp-off-d', 'comp-off-t'));
+      const on_t  = new Date(dtVal('comp-on-d', 'comp-on-t'));
+      const in_t  = new Date(dtVal('comp-in-d', 'comp-in-t'));
+      
+      if (off_t <= out_t || on_t <= off_t || in_t <= on_t) {
+        toast('OOOI times must be sequential (OUT < OFF < ON < IN)', 'error');
         return;
       }
       try {
         await api.completeFlight(id, { 
-          actual_departure: dep.toISOString(),
-          actual_arrival: arr.toISOString(),
-          remaining_fuel: parseFloat($('comp-fuel').value)
+          out_time: out_t.toISOString(),
+          off_time: off_t.toISOString(),
+          on_time: on_t.toISOString(),
+          in_time: in_t.toISOString(),
+          actual_departure: out_t.toISOString(), // Legacy compatibility
+          actual_arrival: in_t.toISOString(), // Legacy compatibility
+          remaining_fuel: parseFloat($('comp-fuel').value),
+          delay_code: $('comp-delay').value || null,
+          delay_minutes: $('comp-delay').value ? Math.round((in_t - out_t) / 60000) : null
         });
         toast('Flight completed successfully'); closeModal(); this.route();
       } catch(err) { toast(err.message,'error'); }
@@ -1215,6 +1311,43 @@ const App = {
         toast('Unavailability added'); closeModal(); this.viewUnavailability();
       } catch(err) { toast(err.message,'error'); }
     });
+  },
+
+  // ─── Notifications ───────────────────────────────────────
+  async checkNotifications() {
+    if (!App.currentUser) return;
+    if (App.currentUser.role === 'Admin') {
+      try {
+        const expiringDocs = await api.getExpiringDocuments(90).catch(() => []);
+        const lastViewedComp = localStorage.getItem('last_viewed_compliance_count') || 0;
+        const navComp = $('nav-compliance');
+        if (navComp) {
+          let b = navComp.querySelector('.nav-badge');
+          if (expiringDocs.length > 0 && parseInt(lastViewedComp) !== expiringDocs.length) {
+            if (!b) {
+              navComp.innerHTML += `<span class="nav-badge">${expiringDocs.length}</span>`;
+            } else {
+              b.textContent = expiringDocs.length;
+            }
+          } else if (b) b.remove();
+        }
+
+        const flights = await api.getAllFlights().catch(() => []);
+        const lastViewedFlights = localStorage.getItem('last_viewed_flights_count') || flights.length;
+        const navFlights = $('nav-manage-flights');
+        if (navFlights) {
+          let b = navFlights.querySelector('.nav-badge');
+          const diff = flights.length - parseInt(lastViewedFlights);
+          if (diff > 0) {
+            if (!b) {
+              navFlights.innerHTML += `<span class="nav-badge">${diff}</span>`;
+            } else {
+              b.textContent = diff;
+            }
+          } else if (b) b.remove();
+        }
+      } catch (e) { console.error(e); }
+    }
   },
 
   // ─── Quick actions ───────────────────────────────────────────────

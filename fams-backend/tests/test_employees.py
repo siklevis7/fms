@@ -31,10 +31,9 @@ def test_pilot_cannot_create_employee(client, pilot_token):
     assert response.status_code == 403
 
 
-def test_pilot_can_list_employees(client, pilot_token):
+def test_pilot_cannot_list_employees(client, pilot_token):
     response = client.get(
         "/api/v1/employees/",
         headers={"Authorization": f"Bearer {pilot_token}"}
     )
-    assert response.status_code == 200
-    assert len(response.json()) > 0
+    assert response.status_code == 403

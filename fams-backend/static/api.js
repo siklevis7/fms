@@ -86,6 +86,7 @@ class ApiService {
   updateFlight(id, d)    { return this.request(`/flights/${id}`, { method: 'PATCH', body: JSON.stringify(d) }); }
   completeFlight(id, d)  { return this.request(`/flights/${id}/complete`, { method: 'POST', body: JSON.stringify(d) }); }
   cancelFlight(id)       { return this.request(`/flights/${id}/cancel`, { method: 'POST' }); }
+  checkFlightReadiness(id) { return this.request(`/flights/${id}/readiness`); }
 
   // ── Assignments ───────────────────────────────────────────────────
   getFlightCrew(fid)       { return this.request(`/assignments/flight/${fid}`); }
@@ -102,6 +103,7 @@ class ApiService {
 
   // ─── Documents ───────────────────────────────────────────────────────
   getDocuments(empId)         { return this.request(`/documents/${empId}`); }
+  getExpiringDocuments(days)  { return this.request(`/documents/compliance/expiring?days_ahead=${days||90}`); }
   createDocument(data)        { return this.request('/documents/', { method: 'POST', body: JSON.stringify(data) }); }
   updateDocument(id, data)    { return this.request(`/documents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   deleteDocument(id)          { return this.request(`/documents/${id}`, { method: 'DELETE' }); }

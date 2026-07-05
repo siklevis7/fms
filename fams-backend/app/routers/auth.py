@@ -1,20 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, verify_password
+from app.auth import create_access_token, verify_password, hash_password
 from app.database import get_db
 from app.dependencies import get_current_employee
 from app.models.employee import Employee
 from app.crud import employees as crud
 from app.schemas.employee import EmployeeResponse, PasswordChange
-from app.auth import hash_password
+from app.main import limiter
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/login", summary="Login to get JWT token")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     employee = crud.get_employee_by_email(db, form_data.username)
     if not employee:
         employee = crud.get_employee_by_number(db, form_data.username)

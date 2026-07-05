@@ -36,8 +36,11 @@ def update_own_profile(
 def get_employee(
     employee_id: int, 
     db: Session = Depends(get_db),
-    _=Depends(get_current_employee)
+    current_employee: Employee = Depends(get_current_employee)
 ):
+    if current_employee.id != employee_id and current_employee.role != EmployeeRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view other employee profiles")
+        
     employee = crud.get_employee(db, employee_id)
     if not employee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
@@ -48,8 +51,11 @@ def get_employee(
 def get_flight_hours(
     employee_id: int, 
     db: Session = Depends(get_db),
-    _=Depends(get_current_employee)
+    current_employee: Employee = Depends(get_current_employee)
 ):
+    if current_employee.id != employee_id and current_employee.role not in [EmployeeRole.ADMIN, EmployeeRole.PERSONNEL]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view other employee flight hours")
+        
     # Verify employee exists
     employee = crud.get_employee(db, employee_id)
     if not employee:

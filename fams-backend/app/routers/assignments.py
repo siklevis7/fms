@@ -41,28 +41,14 @@ def check_employee_assignment(db: Session, employee_id: int, flight_id: int):
         duration = (flight.scheduled_arrival - flight.scheduled_departure).total_seconds() / 3600.0
         hours = calculate_flight_hours(db, employee_id)
         
-        max_d, max_w, max_m = 8, 30, 100
-        max_y = 1000 if emp.role == EmployeeRole.PILOT else 900
-        
-        if hours["daily"] + duration > max_d:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Daily flight hour limit exceeded (Max {max_d}h)")
-        if hours["weekly"] + duration > max_w:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Weekly flight hour limit exceeded (Max {max_w}h)")
-        if hours["monthly"] + duration > max_m:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Monthly flight hour limit exceeded (Max {max_m}h)")
-        if hours["yearly"] + duration > max_y:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Yearly flight hour limit exceeded (Max {max_y}h)")
+        if hours["flight_hours"]["last_28d"] + duration > hours["limits"]["flight_28d"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Assignment exceeds EASA 28d flight time limit")
 
         # Check for expired/expiring documents
-        now = datetime.now(timezone.utc)
+        now_date = datetime.now(timezone.utc).date()
         docs = db.query(EmployeeDocument).filter(EmployeeDocument.employee_id == employee_id).all()
         for d in docs:
-            # expiry_date is a datetime, ensure it's timezone-aware for comparison, or if naive, compare with naive
-            exp_date = d.expiry_date
-            if exp_date.tzinfo is None:
-                exp_date = exp_date.replace(tzinfo=timezone.utc)
-            
-            diff_days = (exp_date - now).days
+            diff_days = (d.expiry_date - now_date).days
             if diff_days <= 30:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Warning: Employee has a document ({d.document_type}) expiring soon or expired ({diff_days} days left). Cannot assign.")
 

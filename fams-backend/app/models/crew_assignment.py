@@ -18,6 +18,7 @@ class AssignmentStatus(str, enum.Enum):
     CONFIRMED = "Confirmed"
     COMPLETED = "Completed"
     REMOVED = "Removed"
+    STANDBY = "Standby"
 
 
 class CrewAssignment(Base):
